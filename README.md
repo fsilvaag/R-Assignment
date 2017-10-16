@@ -1,2 +1,346 @@
 # R-Assignment
 Final R Assignment
+---
+title: "R Homework"
+author: "Fernando Silva Aguilar"
+date: "October 11, 2017"
+output: html_document
+---
+#Data load
+
+* First we start by reading the files directly from github. 
+* To do so, we enter into [fang_et_at_genotypes](https://raw.githubusercontent.com/fsilvaag/BCB546X-Fall2017/master/UNIX_Assignment/fang_et_al_genotypes.txt) for the file Fancg_et_al_Genotypes.txt and [SNP_position](https://raw.githubusercontent.com/EEOB-BioData/BCB546X-Fall2017/master/UNIX_Assignment/snp_position.txt) for the file SNP_Position. 
+```{r}
+
+Genotypes <- read.delim("https://raw.githubusercontent.com/fsilvaag/BCB546X-Fall2017/master/UNIX_Assignment/fang_et_al_genotypes.txt", header=TRUE)
+
+SNP_position <- read.delim("https://raw.githubusercontent.com/EEOB-BioData/BCB546X-Fall2017/master/UNIX_Assignment/snp_position.txt", header=TRUE)
+```
+
+#DATA INSPECTION:
+* First we type head() to have a look of the files. For small or medium data.frame we can use instead View(file), but for large data.frame this could take a long time.
+```{r}
+head(Genotypes, 2, n=5)
+head(SNP_position, n=5)
+```
+
+* We have for both files a structure of a list.
+```{r}
+typeof(Genotypes)
+typeof(SNP_position)
+```
+
+* Equally we have that both files are a data.frame according to the function class. For Genotype file we have all variables as factors, while for SNP_position we have some variables as a integer.
+```{r}
+class(Genotypes)
+class(SNP_position)
+str(Genotypes)
+str(SNP_position)
+```
+
+* The Genotype file has 2782 number of rows and 986 number of columns, while the SNP_position has 983 rows with 15 columns. 
+```{r}
+dim(Genotypes)
+dim(SNP_position)
+```
+
+* The name of each column per file is given by colnames function.
+```{r}
+colnames(Genotypes)
+colnames(SNP_position)
+```
+
+* To investigate the levels per column in each file we can use the levels() function. For example, for the SNP_position data.frame we have 12 levels going from 1 to 10 and including multiple and unknown. Additionally we can appreciate that for the Genotype data.frame we have 16 levels for the group column
+
+```{r}
+
+levels(SNP_position$Chromosome)
+levels(Genotypes$Group)
+```
+
+
+
+#DATA PROCESING
+##Data Split in Groups
+
+* To create the files for Maize, Teosinte, and Tripsacum, we can use the function subset with the logical condition "or" (|). However, for tripsacum we have to work with the logical condition "and" (&) and the opposite condition (!), as follows:
+```{r}
+maize <- subset(Genotypes, Group == "ZMMIL" | Group == "ZMMLR" | Group =="ZMMMR")
+
+teosinte <- subset(Genotypes, Group == "ZMPBA" | Group == "ZMPIL" | Group == "ZMPJA")
+
+tripsacum <- subset(Genotypes, !Group == "ZMPBA" & !Group == "ZMPIL" & !Group == "ZMPJA" & !Group == "ZMMIL" & !Group == "ZMMLR" & !Group=="ZMMMR") 
+
+```
+
+The total number of lines summing over the three files is the same as the total number of lines in the original file, which implies that the copy was correct. 
+
+##Data transposing
+* To transpose the data we can use the function t, as follows.
+```{r}
+
+transposed_maize <- as.data.frame(t(maize))
+
+transposed_teosinte <- as.data.frame(t(teosinte))
+
+
+```
+
+The new data.frame has the problem that the header was not included in the first column, so we load a library(tibble) and include the row names as our first column and include the first row as the header in the new data.frames.
+```{r}
+if(!require("tibble")) install.packages("tibble")
+library(tibble)
+
+names(transposed_maize) <- lapply(transposed_maize[1, ], as.character)
+transposed_maize <- transposed_maize[-1,]
+
+names(transposed_teosinte) <- lapply(transposed_teosinte[1, ], as.character)
+transposed_teosinte <- transposed_teosinte[-1,]
+
+
+transposed_maize <- rownames_to_column(transposed_maize, var="SNP_ID")
+transposed_teosinte <- rownames_to_column(transposed_teosinte, var="SNP_ID")
+
+```
+
+In the data.frame snp_position the column 3 is for chromosome, the position of the chromosome is the column 4, while the column 1 (SNP_ID) is the common column with the transposed files. Then, we proceed to create a new file with only the information required from the snp_position.txt file:
+
+```{r}
+snp_ID_chro_pos <- SNP_position[, c("SNP_ID", "Chromosome", "Position")]
+```
+
+Once we have the new data.frame we proceed to order the data.frames of the transposed files as follows:
+```{r}
+if(!require("dplyr")) install.packages("dplyr")
+library(dplyr)
+
+transposed_teosinte <- arrange(transposed_teosinte, SNP_ID) 
+transposed_maize <- arrange(transposed_maize, SNP_ID) 
+snp_ID_chro_pos <- arrange(snp_ID_chro_pos, SNP_ID) 
+
+```
+
+Now that we have sorted the files by snp_ID, we can proceed to join them with the information of the SNP position, and chromosome:
+
+```{r}
+
+teosinte_all_join <- merge(snp_ID_chro_pos,transposed_teosinte, by.x="SNP_ID", by.y="SNP_ID", all = TRUE)
+
+maize_all_join <- merge(snp_ID_chro_pos,transposed_maize, by.x="SNP_ID", by.y="SNP_ID", all = TRUE)
+
+#NOTE: we can avoid the steps in which we include the column and header to the transposed data.frame, by using in the merge statement the by.y="row.names".
+
+```
+
+* We proceed now to remove the two rows that are not informative (Group and JG_OTU). We make the "or" condition to keep everything else besides unknown or multiple. Then we sort the files by chromosome and position again;
+
+```{r}
+teosinte_all_join <- subset(teosinte_all_join, !(teosinte_all_join$Chromosome == "unknown") | !(teosinte_all_join$Chromosome =="multiple"))
+
+maize_all_join <- subset(maize_all_join, !(maize_all_join$Chromosome == "unknown") | !(maize_all_join$Chromosome == "multiple"))
+
+
+```
+
+* Once we have removed the two uninformative columns, we proceed to sort each dataframe by position in an ascending order. Different from UNIX here we do not have to have in order the chromosomes to be able to extract the information. Thu, sorting by position will give us after the split a new files with the position sorted in an ascending order.
+
+```{r}
+teosinte_all_join <- arrange(teosinte_all_join, Position)
+maize_all_join <- arrange(maize_all_join, Position)
+```
+
+* To create the 10 files per chromosome in the teosinte specie we create a for loop. the first line is to split the dataframe into the different chromosomes. the second line is creating a new function called nom in which I take each of the splitted files. The third column is to create the for loop: from myname to nom, then a new function savename which concatenates the values Chr_ the myname function (number of the chromosome according to the nom function) and ends in teosinte.txt. Finally I export the data from the loop to a tabble.
+```{r}
+
+#set the directory in which you want to save the files in my local computer I want the following directory
+setwd("C:/Users/fsilvaag/Documents/ISU COURSES/2017/fall/BCB546X-Fall2017/R_Lessons/Files")
+
+teosinte_split <- split(teosinte_all_join, teosinte_all_join$Chromosome)
+nom <- names(teosinte_split)
+for(myname in nom){
+  savename = paste0('Teosinte_Chr_', myname, '.txt')
+write.table(teosinte_split[[myname]], file = savename, quote = FALSE, sep = "\t", row.names = FALSE)
+}
+
+maize_split <- split(maize_all_join, maize_all_join$Chromosome)
+nom <- names(maize_split)
+for(myname in nom){
+  savename = paste0('Maize_Chr_', myname, '.txt')
+write.table(maize_split[[myname]], file = savename, quote = FALSE, sep = "\t", row.names = FALSE)
+}
+
+```
+* So far we have the data with the default missing command ?.
+
+##Changing the missing code ? for -
+* We order the dataframe in a decreasing order. After that we have to said R that the values inside the data.frame are characters so we can look for the ? and replace it for -:
+
+```{r}
+# Ordering the data.frame in an decreasing order
+rev_teosinte_all_join <- arrange(teosinte_all_join, desc(Position))
+rev_maize_all_join <- arrange(maize_all_join, desc(Position))
+
+# Changing the symbol ? by -
+rev_teosinte_all_join[] <- lapply(rev_teosinte_all_join, as.character)
+rev_teosinte_all_join[rev_teosinte_all_join == '?/?'] <- '-/-'
+
+rev_maize_all_join[] <- lapply(rev_maize_all_join, as.character)
+rev_maize_all_join[rev_maize_all_join == '?/?'] <- '-/-'
+```
+
+* Once we have the data sorted and with the symbol - instead of ?, we proceed to create the files per chromosome.
+
+```{r}
+
+#set the directory in which you want to save the files in my local computer I want the following directory
+#setwd("C:/Users/fsilvaag/Documents/ISU COURSES/2017/fall/BCB546X-Fall2017/R_Lessons/Files")
+
+rev_teosinte_split <- split(rev_teosinte_all_join, rev_teosinte_all_join$Chromosome)
+nom <- names(rev_teosinte_split)
+for(myname in nom){
+  savename = paste0('Rev_teosinte_Chr_', myname, '.txt')
+write.table(rev_teosinte_split[[myname]], file = savename, quote = FALSE, sep = "\t", row.names = FALSE)
+}
+
+
+rev_maize_split <- split(rev_maize_all_join, rev_maize_all_join$Chromosome)
+nom <- names(rev_maize_split)
+for(myname in nom){
+  savename = paste0('Rev_Maize_Chr_', myname, '.txt')
+write.table(rev_maize_split[[myname]], file = savename, quote = FALSE, sep = "\t", row.names = FALSE)
+}
+
+
+
+```
+#PART II
+
+
+* First we load the packages
+```{r}
+if (!require("ggplot2")) install.packages("ggplot2")
+library(ggplot2)
+
+if(!require("tibble")) install.packages("tibble")
+library(tibble)
+
+if (!require("reshape2")) install.packages("reshape2")
+library(reshape2)
+
+if(!require("dplyr")) install.packages("dplyr")
+library(dplyr)
+
+if (!require("plyr")) install.packages("plyr")
+library(plyr)
+
+```
+
+* Now we have to work with the original file Genotypes and make the merge with the SNP posistion.
+```{r}
+transpose_genotypes <- as.data.frame(t(Genotypes))
+
+#This is to create again the header as the sample ID and to include the first column wich is the row names
+names(transpose_genotypes) <- lapply(transpose_genotypes[1, ], as.character)
+transpose_genotypes <- transpose_genotypes[-1,]
+
+transpose_genotypes <- rownames_to_column(transpose_genotypes, var="SNP_ID")
+
+#Merging the files SNP_position and transpose_genotypes
+
+trans_genotype_join <- merge(SNP_position,transpose_genotypes, by.x="SNP_ID", by.y="SNP_ID", all = TRUE)
+
+
+```
+
+* Now I have created my new dataframe to start to plot.
+
+###Plot of Total SNPs per chromosome and importance of each group
+* First we have to produce create a vector for the chromosomes in order to have a  graph in order.
+```{r}
+# Ordering the chromosomes
+trans_genotype_join$Chromosome <- factor(trans_genotype_join$Chromosome, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "multiple", "unknown", "NA"))
+
+#Creating the graph
+ggplot(trans_genotype_join) + geom_bar(aes(trans_genotype_join$Chromosome)) + xlab("chromosome") + ylab("Total Number of SNP")
+
+#Creating the graph for the significance of each group of SNP (With the original data of (Fang_et_al_genotypes)
+ggplot(Genotypes) + geom_bar(aes(Genotypes$Group)) + xlab("Group of SNPs") + ylab("Total Number of SNP")
+
+
+```
+
+##Missing data and amount of heterozygosity
+* With the melt function we put the individual value of each SNP in each of the sample_ID and JG_OTU.
+
+
+```{r}
+header <- colnames(Genotypes)[-c(1:3)]
+genotypes_melted <- melt(Genotypes, measure.vars = header)
+```
+
+* To change the sybol of missing data from ? to NA
+```{r}
+genotypes_melted[genotypes_melted == "?/?"] = NA
+```
+
+* Creation of a new column for homozygotes by creating a logical value of TRUE or FALSE and NA for the missing data. Then we sort the data.
+
+```{r}
+genotypes_melted$Homozygote <- (genotypes_melted$value == "A/A" | genotypes_melted$value == "C/C" | genotypes_melted$value == "T/T" | genotypes_melted$value == "G/G")
+
+#SORTING THE DATA 
+
+genotypes_melted <- arrange(genotypes_melted, Sample_ID, Group)
+```
+
+###Plot of Homozygotes and Heterozygotes per sample_ID
+
+```{r}
+
+Counts_ID <- ddply(genotypes_melted, c("Sample_ID"), summarise, Num_homozygous=sum(Homozygote, na.rm=TRUE), Num_heterozygous=sum(!Homozygote, na.rm=TRUE), Num_NA=sum(is.na(Homozygote)))
+
+counts_ID_melted <- melt(Counts_ID, measure.vars = c("Num_homozygous", "Num_heterozygous", "Num_NA"))
+colnames(counts_ID_melted)[3] <- "Counts"
+
+ggplot(counts_ID_melted, aes(x = Sample_ID, y= Counts, fill=variable)) + geom_bar(stat = "identity", position = "stack")
+
+```
+
+###Plot of Homozygotes and Heterozygotes per Group
+```{r}
+Counts_group <- ddply(genotypes_melted, c("Group"), summarise, Num_homozygous=sum(Homozygote, na.rm=TRUE), Num_heterozygous=sum(!Homozygote, na.rm=TRUE), Num_NA=sum(is.na(Homozygote)))
+
+counts_Group_melted <- melt(Counts_group, measure.vars = c("Num_homozygous", "Num_heterozygous", "Num_NA"))
+
+ggplot(counts_Group_melted, aes(x = Group, y= value, fill=variable)) + geom_bar(stat = "identity", position = "stack")
+
+
+```
+
+
+##Your own visualization
+
+* I want to see the recombination rate per sample individual. For that we compute the recombination rate as the total number of heterozygote locus (SNP) divided by the total number of locus (SNPs).
+
+```{r}
+
+Heterozy_per_Locus <- ddply(genotypes_melted, c("Sample_ID"), summarise, heterozygocity_count=sum(!Homozygote, na.rm=TRUE), total_count=sum(!is.na(Heterozy_per_Locus)))
+
+Heterozy_per_Locus$Recombination <- (Heterozy_per_Locus$heterozygocity_count/Heterozy_per_Locus$total_count)
+
+ggplot(Heterozy_per_Locus,aes(x = Sample_ID, y= Recombination)) + geom_bar()
+
+ggplot(Heterozy_per_Locus, aes(x = Sample_ID, y= Recombination)) + geom_bar(stat = "identity", position = "stack")
+
+```
+
+
+
+
+
+
+
+
+
+
+
