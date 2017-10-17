@@ -4,6 +4,9 @@ author: "Fernando Silva Aguilar"
 date: "October 11, 2017"
 output: html_notebook
 ---
+**Note from review:** The code works almost perfect, congratulations. It was necessary to mask (comment) the `setwd` command from your chunks to make the code work.
+There is one error message in the last chunk.
+Nice job!
 
 # Data load
 
@@ -151,7 +154,7 @@ maize_all_join <- arrange(maize_all_join, Position)
 ```{r}
 
 #set the directory in which you want to save the files in my local computer I want the following directory
-setwd("C:/Users/fsilvaag/Documents/ISU COURSES/2017/fall/BCB546X-Fall2017/R_Lessons/Files")
+#setwd("C:/Users/fsilvaag/Documents/ISU COURSES/2017/fall/BCB546X-Fall2017/R_Lessons/Files")
 
 teosinte_split <- split(teosinte_all_join, teosinte_all_join$Chromosome)
 nom <- names(teosinte_split)
