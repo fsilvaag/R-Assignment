@@ -1,11 +1,10 @@
-# R-Assignment
-Final R Assignment
 ---
 title: "R Homework"
 author: "Fernando Silva Aguilar"
 date: "October 11, 2017"
-output: html_document
+output: html_notebook
 ---
+
 # Data load
 
 * First we start by reading the files directly from github. 
